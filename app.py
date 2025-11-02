@@ -29,7 +29,7 @@ def load_assets():
 model, scaler = load_assets()
 
 # --- Streamlit Interface ---
-st.title('🩺 Liver Disease Prediction System')
+st.title('Liver Disease Prediction System')
 st.markdown('A Multilayer Perceptron (MLP) Neural Network predicts liver disease risk based on 10 clinical parameters.')
 
 if model is None:
@@ -116,3 +116,4 @@ if submitted:
         st.success('The model indicates a lower risk. Always follow up with a doctor.')
 
 # ------------------------------------------------
+
