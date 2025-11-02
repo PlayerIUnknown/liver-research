@@ -149,25 +149,56 @@ with tab1:
         st.info('Consult a medical professional for diagnosis.')
 
 # ====================================================================
-# TAB 2: Bulk Data Prediction
+# TAB 2: Bulk Data Prediction (FIXED CSV READING)
 # ====================================================================
 with tab2:
     st.header('Upload Test Data for Batch Analysis')
-    st.warning("⚠️ **Crucial:** The CSV file must contain exactly 10 columns of features in the **same order** as the training data (Age, Gender, Total Bilirubin, etc.), and **must NOT** contain the 'Result' column.")
-    
-    uploaded_file = st.file_uploader("Upload your CSV file (e.g., test.csv)", type="csv")
+    st.warning("⚠️ **Crucial:** Your CSV file must contain exactly 10 feature columns in the correct order (Age, Gender, Total Bilirubin, etc.) and **no target column** (Result/Is_Patient).")
+    st.info("Try uploading your raw file (`test.csv.xlsx - Sheet1.csv`) or any simple CSV.")
+
+    uploaded_file = st.file_uploader("Upload your CSV file (e.g., test.csv)", type="csv", key="bulk_upload")
 
     if uploaded_file is not None:
         try:
-            df_uploaded = pd.read_csv(uploaded_file, encoding='latin1', header=None)
+            # 1. READ FILE ROBUSTLY: Use multiple separators and no header initially
+            # We use multiple delimiters (comma, semicolon, pipe, tab, spaces)
+            df_uploaded = pd.read_csv(
+                uploaded_file, 
+                encoding='latin1', 
+                header=None, 
+                sep=r'[;,|\t\s]+', 
+                engine='python' # engine='python' allows complex regex for sep
+            )
+
+            # --- DYNAMIC HEADER AND COLUMN CHECK ---
             
-            # If the header wasn't read correctly, the first row is data, so we proceed without header
-            if len(df_uploaded.columns) == 10 or len(df_uploaded.columns) == 11:
-                 # If 11 columns, assume header was read and drop it
-                 df_uploaded = pd.read_csv(uploaded_file, encoding='latin1', header=None, skiprows=1) 
+            # Reset the file pointer to the start for re-reading if needed
+            uploaded_file.seek(0)
             
-            # Run the prediction function
-            df_results = bulk_predict(df_uploaded, model, scaler, imputer)
+            # Check if the file has 10 columns (no header) or 11 (header + 10 columns)
+            if len(df_uploaded.columns) == 10:
+                # No header row detected. Data starts at row 0.
+                df_final_data = df_uploaded.copy() 
+                df_final_data.columns = FEATURE_ORDER
+            elif len(df_uploaded.columns) == 11:
+                # Header row likely detected (first column is likely an index or junk header)
+                # We re-read, skipping the assumed header row.
+                df_final_data = pd.read_csv(
+                    uploaded_file, 
+                    encoding='latin1', 
+                    header=None, 
+                    skiprows=1, 
+                    sep=r'[;,|\t\s]+', 
+                    engine='python'
+                )
+                df_final_data.columns = FEATURE_ORDER
+
+            else:
+                st.error(f"Uploaded file has an incorrect number of columns. Found {len(df_uploaded.columns)}. Expected 10 features.")
+                return
+
+            # --- 2. Run Prediction ---
+            df_results = bulk_predict(df_final_data, model, scaler, imputer)
             
             if df_results is not None:
                 st.success(f"Analysis complete! {len(df_results)} patient records processed.")
@@ -176,7 +207,7 @@ with tab2:
                 st.subheader("Prediction Results Table")
                 st.dataframe(df_results)
 
-                # Provide a download link for the results
+                # Provide a download link
                 @st.cache_data
                 def convert_df_to_csv(df):
                     return df.to_csv(index=False).encode('utf-8')
@@ -191,4 +222,5 @@ with tab2:
 
         except Exception as e:
             st.error(f"An error occurred during file processing: {e}")
-            st.code("Check if your CSV columns match the expected format (10 columns, no header row/no target column).")
+            st.code("Detailed Error: " + str(e))
+            st.warning("Please ensure your CSV is clean, uses commas or tabs, and contains exactly 10 feature columns.")
