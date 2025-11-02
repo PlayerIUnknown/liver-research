@@ -1,0 +1,8 @@
+# -------------------- requirements.txt --------------------
+streamlit
+tensorflow
+numpy
+pandas
+scikit-learn
+joblib
+h5py # Often needed for Keras model loading
